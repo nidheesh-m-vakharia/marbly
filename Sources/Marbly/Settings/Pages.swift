@@ -357,15 +357,10 @@ struct DockPage: View {
                     Toggle("Show each window", isOn: $prefs.showWindows)
                         .labelsHidden().toggleStyle(PillSwitchStyle())
                 }
-                SettingRow(label: "Cover the Dock in Mission Control",
-                           detail: "Mission Control always shows the real Dock. Marbly rises over it.") {
-                    Toggle("Cover the Dock in Mission Control", isOn: $prefs.coverMissionControl)
-                        .labelsHidden().toggleStyle(PillSwitchStyle())
-                }
             }
-            if (prefs.coverMissionControl || prefs.showWindows), !permissions.accessibility {
+            if prefs.showWindows, !permissions.accessibility {
                 HStack(spacing: 12) {
-                    Callout(icon: .lock, text: "Window keys and covering the Dock in Mission Control need Accessibility access.")
+                    Callout(icon: .lock, text: "Window keys need Accessibility access.")
                     SecondaryButton("Review permissions") { page = .permissions }
                 }
             }
@@ -382,7 +377,7 @@ struct PermissionsPage: View {
         VStack(alignment: .leading, spacing: 40) {
             SettingsSection("Access", detail: "Marbly asks only for what a feature needs.") {
                 SettingRow(label: "Accessibility",
-                           detail: "Lets Marbly read your apps' window titles and notice Mission Control opening. It reads nothing else.") {
+                           detail: "Lets Marbly read your apps' window titles and step aside when Mission Control opens. It reads nothing else.") {
                     HStack(spacing: 10) {
                         StatusBadge(granted: permissions.accessibility, grantedText: "Allowed", missingText: "Not allowed")
                         if !permissions.accessibility {

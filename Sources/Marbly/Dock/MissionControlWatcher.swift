@@ -2,7 +2,8 @@ import AppKit
 import ApplicationServices
 
 /// Reports when Mission Control or App Exposé opens and closes, using the Dock's own
-/// accessibility notifications. Event-driven, but needs Accessibility access.
+/// accessibility notifications, so Marbly can step aside for the real Dock.
+/// Event-driven, but needs Accessibility access.
 @MainActor
 final class MissionControlWatcher {
     var onChange: ((Bool) -> Void)?

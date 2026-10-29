@@ -82,9 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
 
         missionControl.onChange = { [weak panel] active in panel?.setMissionControl(active) }
-        // Watch Mission Control only while it's wanted and permitted.
-        Publishers.CombineLatest(prefs.$coverMissionControl, permissions.$accessibility)
-            .map { $0 && $1 }
+        // Watch Mission Control whenever Accessibility allows, so Marbly can step aside.
+        permissions.$accessibility
             .removeDuplicates()
             .sink { [weak self] on in
                 MainActor.assumeIsolated {

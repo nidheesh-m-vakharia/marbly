@@ -6,7 +6,7 @@ import ServiceManagement
 /// notifications rather than by polling.
 @MainActor
 final class Permissions: ObservableObject {
-    /// Needed to hear the Dock's Mission Control notifications.
+    /// Needed for window keys and to hear the Dock's Mission Control notifications.
     @Published private(set) var accessibility = AXIsProcessTrusted()
     @Published private(set) var openAtLogin = SMAppService.mainApp.status == .enabled
 
