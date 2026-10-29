@@ -3,8 +3,8 @@ import Foundation
 /// Keeps the macOS Dock out of the way while Marbly runs, and puts it back afterwards.
 ///
 /// The Dock is set to auto-hide with a very long reveal delay, so it never appears.
-/// Mission Control still draws it, so its icons are also shrunk to the minimum so
-/// Marbly's board can cover it there.
+/// Its icon size is left alone: in Mission Control the real Dock shows as normal while
+/// Marbly steps aside.
 /// The user's original values are saved first and restored on quit. If Marbly crashes,
 /// the saved values survive, and the next launch or quit restores them.
 @MainActor
@@ -12,14 +12,13 @@ enum SystemDock {
     private struct Saved: Codable {
         var autohide: Bool
         var delay: Double?
+        /// Set only by older builds, which shrank the Dock's icons; restored and cleared.
         var tilesize: Double?
-        /// Older saves predate tile size; when false, the current size is still the user's own.
         var capturedTilesize: Bool?
     }
 
     private static let savedKey = "savedSystemDock"
     private static let suppressedDelay = 1000.0
-    private static let suppressedTilesize = 16.0
 
     private static var saved: Saved? {
         get { UserDefaults.standard.data(forKey: savedKey).flatMap { try? JSONDecoder().decode(Saved.self, from: $0) } }
@@ -36,19 +35,30 @@ enum SystemDock {
     }
 
     static func suppress() {
+        var needsRestart = false
         if saved == nil {
-            saved = Saved(autohide: DockPlist.autohide, delay: DockPlist.autohideDelay,
-                          tilesize: DockPlist.tilesize, capturedTilesize: true)
-        } else if saved?.capturedTilesize != true {
-            saved?.tilesize = DockPlist.tilesize
-            saved?.capturedTilesize = true
+            saved = Saved(autohide: DockPlist.autohide, delay: DockPlist.autohideDelay)
+        } else if saved?.capturedTilesize == true {
+            // An older build shrank the Dock's icons; give the user's size back now.
+            restoreTilesize(saved?.tilesize)
+            saved?.tilesize = nil
+            saved?.capturedTilesize = nil
+            needsRestart = true
         }
-        guard !DockPlist.autohide || DockPlist.autohideDelay != suppressedDelay
-            || DockPlist.tilesize != suppressedTilesize else { return }
-        defaults("write", "autohide", "-bool", "true")
-        defaults("write", "autohide-delay", "-float", String(suppressedDelay))
-        defaults("write", "tilesize", "-float", String(suppressedTilesize))
-        restartDock()
+        if !DockPlist.autohide || DockPlist.autohideDelay != suppressedDelay {
+            defaults("write", "autohide", "-bool", "true")
+            defaults("write", "autohide-delay", "-float", String(suppressedDelay))
+            needsRestart = true
+        }
+        if needsRestart { restartDock() }
+    }
+
+    private static func restoreTilesize(_ size: Double?) {
+        if let size {
+            defaults("write", "tilesize", "-float", String(size))
+        } else {
+            defaults("delete", "tilesize")
+        }
     }
 
     static func restore() {
@@ -60,11 +70,7 @@ enum SystemDock {
             defaults("delete", "autohide-delay")
         }
         if original.capturedTilesize == true {
-            if let size = original.tilesize {
-                defaults("write", "tilesize", "-float", String(size))
-            } else {
-                defaults("delete", "tilesize")
-            }
+            restoreTilesize(original.tilesize)
         }
         saved = nil
         restartDock()

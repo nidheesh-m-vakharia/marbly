@@ -58,7 +58,7 @@
 			<div><dt>Lighting</dt><dd>Light direction, highlight, gloss and shadow depth.</dd></div>
 			<div><dt>Keyboard</dt><dd>Keycap profile, what fills the gaps between keys, key size, legend.</dd></div>
 			<div><dt>Sound</dt><dd>Eight switch profiles, volume, release sounds.</dd></div>
-			<div><dt>Dock</dt><dd>Replacing the Dock, hiding, window keys, Mission Control.</dd></div>
+			<div><dt>Dock</dt><dd>Replacing the Dock, hiding, window keys.</dd></div>
 		</dl>
 	</section>
 
@@ -73,15 +73,15 @@
 	<section id="mission-control">
 		<h2 class="heading">Mission Control</h2>
 		<p class="muted">
-			Mission Control always draws the real Dock. With Accessibility allowed, Marbly notices it
-			opening and rises over the Dock until it closes.
+			Mission Control and App Exposé show the real Dock, as they always do. Marbly steps aside
+			while they're open and comes back when they close. It needs Accessibility to notice them.
 		</p>
 	</section>
 
 	<section id="permissions">
 		<h2 class="heading">Permissions</h2>
 		<p class="muted">
-			Marbly asks for one permission: Accessibility, to read window titles and notice Mission Control.
+			Marbly asks for one permission: Accessibility, to read window titles and step aside for Mission Control.
 			It doesn't need Screen Recording, Input Monitoring or Full Disk Access, and it never connects to
 			the internet.
 		</p>
@@ -93,7 +93,7 @@
 			Quitting Marbly restores your Dock exactly as it was. If Marbly was force-quit and the Dock stays
 			hidden, open and quit Marbly again, or run:
 		</p>
-		<Code code="defaults delete com.apple.dock autohide-delay; defaults delete com.apple.dock tilesize; killall Dock" />
+		<Code code="defaults delete com.apple.dock autohide-delay; killall Dock" />
 	</section>
 
 	<section id="uninstall">

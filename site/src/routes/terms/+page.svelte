@@ -20,8 +20,8 @@
 	<section>
 		<h2 class="heading">What Marbly changes on your Mac</h2>
 		<p class="muted">
-			To stand in for the Dock, Marbly changes three Dock settings while it runs: auto-hide, the
-			auto-hide delay and the icon size. It saves your originals first and restores them when it
+			To stand in for the Dock, Marbly changes two Dock settings while it runs: auto-hide and the
+			auto-hide delay. It saves your originals first and restores them when it
 			quits. Keep in Dock and Remove from Dock change the Dock's list of apps, just as they do in the
 			Dock itself.
 		</p>

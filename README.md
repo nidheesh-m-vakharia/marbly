@@ -21,7 +21,7 @@ Open the menu bar's keyboard icon and choose **Open Marbly…** (⌘,) for the c
 - **Keyboard**: keycap profile (Cherry, SA, DSA, Low profile), what fills the space between
   keys (plate, body, a colour, or a per-key backlight), key size, legend, reflection
 - **Sound**: eight switch profiles, volume, release sounds
-- **Dock**: replacing the Dock, auto-hide, covering the Dock in Mission Control
+- **Dock**: replacing the Dock, auto-hide, one key per window
 - **Permissions**: Accessibility status and open at login
 
 ## Sounds
@@ -48,15 +48,13 @@ If your Dock was set to auto-hide, Marbly does the same: it stays off-screen and
 when the pointer reaches the bottom edge, after your Dock's own delay. With Reduce Motion
 on, it fades instead of sliding. Both options are under **Dock** in the menu.
 
-Mission Control always draws the real Dock. With Accessibility access, Marbly listens
-for the Dock's Mission Control notifications, rises above the overlay and covers it.
-The real Dock's icons are shrunk to the minimum while Marbly runs so the board hides it
-fully; the size is restored on quit.
+Mission Control and App Exposé show the real Dock as normal. With Accessibility access,
+Marbly listens for the Dock's Mission Control notifications and steps aside until they close.
 
 If Marbly is force-quit and the Dock stays hidden, relaunch and quit Marbly, or run:
 
 ```sh
-defaults delete com.apple.dock autohide-delay; defaults delete com.apple.dock tilesize; killall Dock
+defaults delete com.apple.dock autohide-delay; killall Dock
 ```
 
 Apps can't reserve screen space the way the Dock does, so with auto-hide off, maximised

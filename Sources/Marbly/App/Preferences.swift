@@ -48,7 +48,6 @@ final class Preferences: ObservableObject {
     @Published var replaceSystemDock: Bool { didSet { save(replaceSystemDock, "replaceSystemDock") } }
     @Published var autoHide: Bool { didSet { save(autoHide, "autoHide") } }
     @Published var showWindows: Bool { didSet { save(showWindows, "showWindows") } }
-    @Published var coverMissionControl: Bool { didSet { save(coverMissionControl, "coverMissionControl") } }
 
     var keyStyle: KeyStyle { KeyStyle(profile: profile, lighting: lighting) }
 
@@ -67,7 +66,7 @@ final class Preferences: ObservableObject {
         let graphite = Theme.all[0]
         defaults.register(defaults: [
             "soundEnabled": true, "releaseSounds": true, "volume": 0.6, "keySize": 56.0,
-            "showReflection": true, "replaceSystemDock": true, "coverMissionControl": true, "showWindows": true,
+            "showReflection": true, "replaceSystemDock": true, "showWindows": true,
             // Until the user picks otherwise, behave like their Dock does.
             "autoHide": SystemDock.userAutohide,
             "backlight": 0.7,
@@ -93,7 +92,6 @@ final class Preferences: ObservableObject {
         appearance = WindowAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
         replaceSystemDock = defaults.bool(forKey: "replaceSystemDock")
         autoHide = defaults.bool(forKey: "autoHide")
-        coverMissionControl = defaults.bool(forKey: "coverMissionControl")
         showWindows = defaults.bool(forKey: "showWindows")
     }
 

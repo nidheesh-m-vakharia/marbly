@@ -85,8 +85,6 @@ final class DockPanel {
     private var inMissionControl = false
     private var shrinkWork: DispatchWorkItem?
     private static let dockLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)))
-    /// Mission Control's overlay sits at the Dock's level; this is just above it.
-    private static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
     private var pending: DispatchWorkItem?
     private var shownFrame = NSRect.zero
 
@@ -140,30 +138,21 @@ final class DockPanel {
         if prefs.autoHide { conceal(animated: false) } else { reveal(animated: false) }
     }
 
-    /// In Mission Control the system Dock is always drawn. Marbly rises above the overlay
-    /// and drops its reflection below the screen edge so the board covers the Dock.
+    /// Mission Control and App Exposé draw the real Dock. Marbly doesn't compete: it
+    /// steps aside while they're open and comes back as it was when they close.
     func setMissionControl(_ active: Bool) {
         inMissionControl = active
         pending?.cancel()
         if active {
-            panel.level = Self.overlayLevel
-            panel.alphaValue = 1
-            panel.setFrame(missionControlFrame, display: true)
-            panel.orderFrontRegardless()
+            panel.orderOut(nil)
+            edge.orderOut(nil)
+        } else if prefs.autoHide {
+            isShown = true
+            conceal(animated: false)
+            edge.orderFrontRegardless()
         } else {
-            panel.level = Self.dockLevel
-            if prefs.autoHide, !panel.frame.contains(NSEvent.mouseLocation) {
-                isShown = true
-                conceal(animated: false)
-            } else {
-                reveal(animated: false)
-            }
+            reveal(animated: false)
         }
-    }
-
-    private var missionControlFrame: NSRect {
-        let below = BoardLayout.belowBoard(unit: CGFloat(prefs.keySize), reflection: prefs.showReflection)
-        return NSRect(x: shownFrame.minX, y: shownFrame.minY - below, width: shownFrame.width, height: shownFrame.height)
     }
 
     private func layout() {
@@ -177,12 +166,9 @@ final class DockPanel {
         shownFrame = NSRect(x: (bounds.midX - size.width / 2).rounded(), y: bottom, width: size.width, height: size.height)
 
         edge.setFrame(NSRect(x: shownFrame.minX, y: bounds.minY, width: shownFrame.width, height: 2), display: false)
+        // Out of sight while Mission Control is open; picked up again when it closes.
+        if inMissionControl { return }
         if prefs.autoHide { edge.orderFrontRegardless() } else { edge.orderOut(nil) }
-
-        if inMissionControl {
-            panel.setFrame(missionControlFrame, display: true)
-            return
-        }
         if !prefs.autoHide, !isShown { reveal(animated: true) }
         guard isShown, panel.frame != shownFrame else { return }
         // The board animates its own size inside the panel, centred. Growing, the panel

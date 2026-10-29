@@ -68,7 +68,7 @@
 		{ icon: 'palette', title: 'Coloured by your icons', text: "Each keycap takes its colour from the app's icon edge, so the walls continue the face." },
 		{ icon: 'volume', title: 'Real switch sounds', text: 'Eight switches rendered with mechsound, from deep Thock to crisp Blue. Press, and release.' },
 		{ icon: 'window', title: 'A key for every window', text: 'Apps with several windows get a key each, numbered in the corner. Click one to bring that window forward.' },
-		{ icon: 'eye', title: 'Out of the way', text: 'Hides like the Dock, slides up at the bottom edge, and covers the real Dock in Mission Control.' },
+		{ icon: 'eye', title: 'Out of the way', text: 'Hides like the Dock, slides up at the bottom edge, and steps aside for the real Dock in Mission Control.' },
 		{ icon: 'cpu', title: 'Light on your Mac', text: 'Nothing polls. At rest Marbly sits at 0% CPU and around 30 MB of memory.' }
 	];
 </script>
