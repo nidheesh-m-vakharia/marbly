@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in Marbly or the site doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the macOS Dock is stuck hidden, quit and reopen Marbly, or run:
+        `defaults delete com.apple.dock autohide-delay; defaults delete com.apple.dock tilesize; killall Dock`
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings → Dock
+        2. Turn on …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Marbly version or commit
+      placeholder: 0.1.0, or the commit you built from
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - The board (keys, sounds, Dock behaviour)
+        - Settings window
+        - Menu bar menu
+        - Website
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: A screenshot helps most. Console.app logs from Marbly are welcome too.

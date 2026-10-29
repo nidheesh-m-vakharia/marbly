@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guide
+    url: https://marbly.click/guide
+    about: Installing, permissions, and getting the Dock back.

@@ -1,5 +1,7 @@
 # Marbly
 
+[![CI](https://github.com/nidheesh-m-vakharia/marbly/actions/workflows/ci.yml/badge.svg)](https://github.com/nidheesh-m-vakharia/marbly/actions/workflows/ci.yml)
+
 Your Mac's Dock, as a row of mechanical keycaps.
 
 Marbly reads the apps in your Dock and draws them as sculpted keys on a small keyboard
@@ -129,3 +131,8 @@ pnpm build      # static site in site/build
 
 The showcase images in `site/static/showcase` are rendered from the app itself, with
 `--snapshot`, `--snapshot-settings` and `--snapshot-windows`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the PR workflow and the design rules.
+Security reports go through [SECURITY.md](SECURITY.md).

@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for Marbly or the site.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the need rather than the solution, e.g. "I want to tell my two Safari windows apart".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How might it work?
+      description: Optional. Sketches and screenshots welcome.
