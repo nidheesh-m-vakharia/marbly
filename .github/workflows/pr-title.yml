@@ -2,8 +2,10 @@ name: PR title
 
 # Squash merges use the PR title as the commit message, so titles follow
 # Conventional Commits: type(scope): summary — e.g. "feat(app): window numbers".
+# `pull_request` (not `_target`) so the check runs from the PR's own workflow file,
+# including on the PR that introduces it. It only reads the title; nothing is checked out.
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, reopened]
 
 permissions:
