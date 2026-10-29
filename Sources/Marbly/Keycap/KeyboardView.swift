@@ -61,6 +61,11 @@ struct KeyboardView: View {
         .padding(.top, unit * BoardLayout.top)
         .padding(.horizontal, unit * BoardLayout.side)
         .padding(.bottom, prefs.showReflection ? 0 : unit * BoardLayout.bottom)
+        // One gesture for the whole board, in BoardLayout's coordinates. Its view never
+        // changes during a drag, so the drop always arrives (a per-key gesture could be
+        // cancelled when its key's view changed, and a cancelled drag never ends).
+        .coordinateSpace(.named(Self.space))
+        .gesture(boardGesture(unit: unit))
         // The tooltip lives outside the board's drawingGroup, which would clip it.
         .overlay(alignment: .topLeading) {
             if pressedID == nil, drag == nil, let id = hoveredID, let (index, app) = hoveredApp(id) {
@@ -75,7 +80,7 @@ struct KeyboardView: View {
                 let rise = unit * BoardLayout.liftHeight * lift
                 // The cap's shadow, cast down onto the switch it's hovering over.
                 RoundedRectangle(cornerRadius: KeycapView.capRadius(unit: unit, profile: prefs.profile), style: .continuous)
-                    .fill(.black.opacity(0.32 * lift))
+                    .fill(.black.opacity(0.16 * lift))
                     .frame(width: unit * 0.9, height: unit * 0.9)
                     .blur(radius: unit * 0.12)
                     .position(x: frame.midX + d.translation + unit * 0.05, y: frame.midY + unit * 0.08)
@@ -107,7 +112,6 @@ struct KeyboardView: View {
         return HStack(spacing: unit * BoardLayout.gap) {
             // Groups are identified by position so a well doesn't re-enter when its first key changes.
             ForEach(Array(BoardLayout.groups(store.slots).enumerated()), id: \.offset) { groupIndex, group in
-                let ids = group.map(\.app.id)
                 HStack(spacing: unit * BoardLayout.spacing) {
                     ForEach(Array(group.enumerated()), id: \.element.app.id) { position, entry in
                         let app = entry.app
@@ -133,8 +137,6 @@ struct KeyboardView: View {
                             guard interactive else { return }
                             hoveredID = inside ? app.id : (hoveredID == app.id ? nil : hoveredID)
                         }
-                        .gesture(press(app, unit: unit, pan: pan(entry.index), group: groupIndex, position: position, ids: ids),
-                                 including: interactive ? .all : .none)
                         // Shifting to make room: slide over with a spring, staggered by distance.
                         .offset(x: CGFloat(shown - position) * step)
                         .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.82).delay(stagger),
@@ -251,11 +253,58 @@ struct KeyboardView: View {
 
     /// A press that becomes a drag once it moves sideways: a click opens the app, a drag
     /// lifts the cap and reorders the well, a drop writes the new order to the Dock.
-    private func press(_ app: DockApp, unit: CGFloat, pan: Float, group: Int, position: Int, ids: [String]) -> some Gesture {
-        // Global coordinates: the dragged key itself moves as the order changes, so
-        // measuring in its own space would feed its movement back into the drag.
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+    private static let space = "board"
+
+    /// The key under a point, with where it sits in its well.
+    private struct Hit {
+        let app: DockApp
+        let group: Int
+        let position: Int
+        let ids: [String]
+        let slotIndex: Int
+    }
+
+    private func hit(at point: CGPoint, unit: CGFloat) -> Hit? {
+        let layout = BoardLayout(unit: unit)
+        for (g, group) in BoardLayout.groups(store.slots).enumerated() {
+            for (position, entry) in group.enumerated() {
+                if layout.keyFrame(entry.index, in: store.slots)?.contains(point) == true {
+                    return Hit(app: entry.app, group: g, position: position, ids: group.map(\.app.id), slotIndex: entry.index)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Presses become drags once they move sideways: a click opens the app, a drag lifts
+    /// the cap off its switch and reorders the well, a drop writes the order to the Dock.
+    /// The key is found from where the press started, which never moves.
+    private func boardGesture(unit: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space))
             .onChanged { value in
+                guard let h = hit(at: value.startLocation, unit: unit) else { return }
+                press(h, value: value, unit: unit)
+            }
+            .onEnded { value in
+                if let d = drag {
+                    drop(d, pan: pan(d.id))
+                    return
+                }
+                guard let h = hit(at: value.startLocation, unit: unit) else { pressedID = nil; return }
+                pressedID = nil
+                if prefs.releaseSounds { click(.up, pan: pan(h.slotIndex)) }
+                // A click if the pointer was let go roughly where it went down.
+                let moved = hypot(value.translation.width, value.translation.height)
+                if launchesApps, moved.isFinite, moved < unit / 2 {
+                    store.activate(h.app)
+                }
+            }
+    }
+
+    private func press(_ h: Hit, value: DragGesture.Value, unit: CGFloat) {
+        let app = h.app, group = h.group, position = h.position, ids = h.ids
+        let pan = pan(h.slotIndex)
+        do {
                 if var d = drag {
                     guard d.id == app.id else { return }
                     let step = unit * (1 + BoardLayout.spacing)
@@ -289,20 +338,11 @@ struct KeyboardView: View {
                         lift = 1
                     }
                 }
-            }
-            .onEnded { value in
-                if let d = drag, d.id == app.id {
-                    drop(d, pan: pan)
-                    return
-                }
-                pressedID = nil
-                if prefs.releaseSounds { click(.up, pan: pan) }
-                // A click if the pointer was let go roughly where it went down.
-                let moved = hypot(value.translation.width, value.translation.height)
-                if launchesApps, moved.isFinite, moved < unit / 2 {
-                    store.activate(app)
-                }
-            }
+        }
+    }
+
+    private func pan(_ id: String) -> Float {
+        pan(store.slots.firstIndex { $0.id == id } ?? 0)
     }
 
     /// Puts the cap down in its new place. The board's order and every offset change in
@@ -345,9 +385,9 @@ struct KeyboardView: View {
 /// Where each key sits inside the board view, in its top-left coordinate space.
 /// Shared by the SwiftUI layout, the tooltip, and right-click hit-testing.
 struct BoardLayout {
-    static let top = 1.05, side = 0.3, caseWall = 0.12, plate = 0.14, spacing = 0.07, gap = 0.22
+    static let top = 1.3, side = 0.3, caseWall = 0.12, plate = 0.14, spacing = 0.07, gap = 0.22
     /// How far a picked-up cap rises above its switch, in key units.
-    static let liftHeight = 0.85
+    static let liftHeight = 1.1
     static let reflectionGap = 0.04, reflection = 0.55, bottom = 0.2
     let unit: CGFloat
 

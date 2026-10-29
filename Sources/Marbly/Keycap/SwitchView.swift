@@ -64,11 +64,10 @@ struct SwitchDesign {
     }
 }
 
-/// A switch seen from above, as it sits in the plate with its keycap lifted off.
-///
-/// Drawn at true scale in millimetres: a key unit is 19.05 mm pitch with an 18 mm cap,
-/// the top housing is about 15.6 mm square, and the Cherry MX cross is 4.1 mm wide
-/// with 1.17 mm horizontal and 1.31 mm vertical arms. One Canvas, one draw pass.
+/// A switch drawn flat from the front, the way it's usually pictured: stem cross on
+/// top, the top housing's raised centre and sloped shoulders, the bottom housing, and
+/// the two pins. Built from simple shapes in millimetres, roughly to MX proportions
+/// (15.6 mm wide housing, 4.1 mm cross), and lit from the board's light.
 struct SwitchView: View {
     let design: SwitchDesign
     let unit: CGFloat
@@ -76,98 +75,112 @@ struct SwitchView: View {
 
     var body: some View {
         Canvas { context, size in
-            let mm = size.width / 18
-            context.translateBy(x: size.width / 2, y: size.height / 2)
+            // The switch is about 21 mm tall from cross to pin tips; fit it to the slot.
+            let mm = size.height / 22.5
+            context.translateBy(x: size.width / 2, y: size.height * 0.04)
             draw(in: &context, mm: mm)
         }
         .frame(width: unit, height: unit)
         .accessibilityLabel("\(design.name) switch")
     }
 
-    // MARK: - Drawing
+    // MARK: - Shapes
 
-    private func rect(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, mm: CGFloat) -> CGRect {
-        CGRect(x: (cx - w / 2) * mm, y: (cy - h / 2) * mm, width: w * mm, height: h * mm)
+    private func box(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, mm: CGFloat) -> CGRect {
+        CGRect(x: (x - w / 2) * mm, y: y * mm, width: w * mm, height: h * mm)
     }
 
     private func rounded(_ r: CGRect, _ radius: CGFloat, mm: CGFloat) -> Path {
         Path(roundedRect: r, cornerRadius: radius * mm, style: .continuous)
     }
 
-    /// Light direction in screen space (x right, y down), from the board's lighting.
-    private var light: CGVector {
-        let a = lighting.angle * .pi / 180
-        return CGVector(dx: sin(a), dy: -cos(a))
+    /// A trapezoid from `topWidth` at `y` down to `bottomWidth` at `y + h`.
+    private func trapezoid(_ y: CGFloat, _ topWidth: CGFloat, _ bottomWidth: CGFloat, _ h: CGFloat, mm: CGFloat) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: -topWidth / 2 * mm, y: y * mm))
+        p.addLine(to: CGPoint(x: topWidth / 2 * mm, y: y * mm))
+        p.addLine(to: CGPoint(x: bottomWidth / 2 * mm, y: (y + h) * mm))
+        p.addLine(to: CGPoint(x: -bottomWidth / 2 * mm, y: (y + h) * mm))
+        p.closeSubpath()
+        return p
     }
 
+    /// Horizontal shading: brighter on the side the light comes from.
+    private func lit(_ c: RGB, _ x0: CGFloat, _ x1: CGFloat, mm: CGFloat, base: Double = 1) -> GraphicsContext.Shading {
+        let a = lighting.angle * .pi / 180
+        let fromLeft = sin(a) < 0
+        let bright = shade(c, base * (1.12 + 0.15 * lighting.intensity))
+        let dark = shade(c, base * 0.72)
+        return .linearGradient(Gradient(colors: fromLeft ? [bright, dark] : [dark, bright]),
+                               startPoint: CGPoint(x: x0 * mm, y: 0), endPoint: CGPoint(x: x1 * mm, y: 0))
+    }
+
+    private func shade(_ c: RGB, _ k: Double) -> Color {
+        Color(.sRGB, red: min(1, c.r * k), green: min(1, c.g * k), blue: min(1, c.b * k))
+    }
+
+    // MARK: - Drawing, back to front
+
     private func draw(in context: inout GraphicsContext, mm: CGFloat) {
-        let top = design.top, bottom = design.bottom
-        let housing = rect(0, 0, 15.6, 15.6, mm: mm)
-        let housingShape = rounded(housing, 1.3, mm: mm)
-        let shadowAway = CGSize(width: -light.dx * 0.6 * mm, height: -light.dy * 0.6 * mm + 0.4 * mm)
-
-        // Contact shadow: the housing sitting proud of the plate.
-        var shadow = context
-        shadow.addFilter(.blur(radius: 0.9 * mm))
-        shadow.fill(rounded(housing.offsetBy(dx: shadowAway.width, dy: shadowAway.height), 1.6, mm: mm),
-                    with: .color(.black.opacity(0.55 * lighting.shadow + 0.15)))
-
-        // Bottom housing peeking out around the top housing's skirt.
-        context.fill(rounded(rect(0, 0.25, 15.9, 15.7, mm: mm), 1.4, mm: mm), with: .color(shade(bottom, 0.7)))
-
         let clear = design.topMaterial == .polycarbonate
+        let topAlpha: Double = clear ? 0.38 : 1
+        let sheen: Double = switch design.topMaterial {
+        case .nylon: 0.12
+        case .pom: 0.28
+        case .polycarbonate: 0.5
+        }
+
+        // Shadow on the plate beneath.
+        var shadow = context
+        shadow.addFilter(.blur(radius: 1.2 * mm))
+        shadow.fill(Path(ellipseIn: box(0.8, 19.6, 15, 2.2, mm: mm)), with: .color(.black.opacity(0.35 + 0.3 * lighting.shadow)))
+
+        // Pins: a gold switch pin and a copper LED-side pin, below the bottom housing.
+        let gold = RGB(hex: "#D9B45B")!
+        for x in [-2.6, 3.6] {
+            context.fill(rounded(box(x, 16.6, 0.9, 3.6, mm: mm), 0.2, mm: mm), with: lit(gold, x - 0.45, x + 0.45, mm: mm))
+        }
+        // Plastic locating post in the middle.
+        context.fill(rounded(box(0.4, 16.6, 2.4, 2.2, mm: mm), 0.6, mm: mm), with: lit(design.bottom, -0.8, 1.6, mm: mm, base: 0.85))
+
+        // Interior seen through a clear top: stem column, spring, contact leaf.
         if clear {
-            // Through a clear top: the bottom housing floor, the gold contact leaf, the spring.
-            context.fill(housingShape, with: .color(shade(bottom, 0.85)))
-            context.fill(rounded(rect(-5.3, -0.4, 1.4, 6.2, mm: mm), 0.3, mm: mm),
-                         with: .linearGradient(Gradient(colors: [RGB(hex: "#F2D27A")!.color, RGB(hex: "#B8892E")!.color]),
-                                               startPoint: CGPoint(x: -6 * mm, y: 0), endPoint: CGPoint(x: -4.6 * mm, y: 0)))
-            for r in [2.95, 2.55] {
-                context.stroke(Path(ellipseIn: rect(0, 0.2, r * 2, r * 2, mm: mm)),
-                               with: .color(design.goldSpring ? RGB(hex: "#D7B45A")!.color.opacity(0.85) : Color(white: 0.75).opacity(0.8)),
-                               lineWidth: 0.32 * mm)
+            context.fill(rounded(box(0, 5.8, 4.4, 6.4, mm: mm), 0.4, mm: mm), with: lit(design.stem, -2.2, 2.2, mm: mm, base: 0.9))
+            var spring = Path()
+            for i in 0...6 {
+                let y = 7.4 + Double(i) * 0.9
+                spring.move(to: CGPoint(x: -3.1 * mm, y: y * mm))
+                spring.addLine(to: CGPoint(x: 3.1 * mm, y: (y + 0.45) * mm))
             }
+            context.stroke(spring, with: .color(design.goldSpring ? gold.color.opacity(0.9) : Color(white: 0.78).opacity(0.9)),
+                           lineWidth: 0.35 * mm)
+            context.fill(rounded(box(-5.4, 8.2, 0.8, 6.2, mm: mm), 0.2, mm: mm), with: lit(gold, -5.8, -5, mm: mm))
         }
 
-        // Top housing: material decides how much it tints, shines and shows through.
-        let (fillOpacity, sheen, rim) = materialLook(design.topMaterial)
-        context.fill(housingShape, with: .linearGradient(
-            Gradient(colors: [shade(top, 1.12).opacity(fillOpacity), shade(top, 0.86).opacity(fillOpacity)]),
-            startPoint: CGPoint(x: light.dx * 7.8 * mm, y: light.dy * 7.8 * mm),
-            endPoint: CGPoint(x: -light.dx * 7.8 * mm, y: -light.dy * 7.8 * mm)))
-        // Specular sheen across the housing, toward the light.
-        context.fill(housingShape, with: .radialGradient(
-            Gradient(colors: [.white.opacity(sheen * lighting.intensity * (0.6 + 0.6 * lighting.gloss)), .clear]),
-            center: CGPoint(x: light.dx * 4.5 * mm, y: light.dy * 4.5 * mm), startRadius: 0, endRadius: 9 * mm))
-        // Bevel: lit edge bright, far edge dark.
-        context.stroke(rounded(housing.insetBy(dx: 0.25 * mm, dy: 0.25 * mm), 1.15, mm: mm),
-                       with: .linearGradient(Gradient(colors: [.white.opacity(rim), .clear, .black.opacity(0.45)]),
-                                             startPoint: CGPoint(x: light.dx * 7.8 * mm, y: light.dy * 7.8 * mm),
-                                             endPoint: CGPoint(x: -light.dx * 7.8 * mm, y: -light.dy * 7.8 * mm)),
-                       lineWidth: 0.5 * mm)
-
-        // Moulded details on the top housing.
-        let detail = Color.black.opacity(clear ? 0.25 : 0.38)
+        // Bottom housing: narrower block with side latches.
+        context.fill(trapezoid(11.4, 14.2, 13.2, 5.4, mm: mm), with: lit(design.bottom, -7, 7, mm: mm, base: 0.85))
         for side in [-1.0, 1.0] {
-            for y in [-4.3, 4.3] {
-                // Clip windows where the top housing latches onto the bottom.
-                context.fill(rounded(rect(side * 7.15, y, 0.9, 2.8, mm: mm), 0.25, mm: mm), with: .color(detail))
-            }
-            // Ejector pin marks.
-            context.stroke(Path(ellipseIn: rect(side * 4.9, 5.6, 1.0, 1.0, mm: mm)), with: .color(detail), lineWidth: 0.18 * mm)
+            context.fill(rounded(box(side * 7.25, 12.4, 1.1, 2.4, mm: mm), 0.3, mm: mm),
+                         with: .color(shade(design.bottom, 0.6)))
         }
-        // LED window, at the north edge.
-        context.fill(rounded(rect(0, -5.6, 4.3, 1.7, mm: mm), 0.3, mm: mm), with: .color(.black.opacity(clear ? 0.3 : 0.55)))
-        context.stroke(rounded(rect(0, -5.6, 4.3, 1.7, mm: mm), 0.3, mm: mm),
-                       with: .color(.white.opacity(rim * 0.5)), lineWidth: 0.15 * mm)
+        // Seam between the housings.
+        context.fill(Path(box(0, 11.2, 15.0, 0.35, mm: mm)), with: .color(.black.opacity(0.45)))
 
-        // Stem opening: a shaded well the stem rises through.
-        let opening = rounded(rect(0, 0, 7.4, 6.2, mm: mm), 0.6, mm: mm)
-        context.fill(opening, with: .color(.black.opacity(0.65)))
-        context.stroke(opening, with: .linearGradient(Gradient(colors: [.black.opacity(0.6), .white.opacity(rim * 0.7)]),
-                                                      startPoint: CGPoint(x: light.dx * 3.5 * mm, y: light.dy * 3.5 * mm),
-                                                      endPoint: CGPoint(x: -light.dx * 3.5 * mm, y: -light.dy * 3.5 * mm)),
-                       lineWidth: 0.25 * mm)
+        // Top housing: skirt, sloped shoulders, raised centre.
+        var top = context
+        top.opacity = topAlpha
+        top.fill(rounded(box(0, 8.9, 15.6, 2.5, mm: mm), 0.5, mm: mm), with: lit(design.top, -7.8, 7.8, mm: mm))
+        top.fill(trapezoid(5.9, 9.6, 15.6, 3.1, mm: mm), with: lit(design.top, -7.8, 7.8, mm: mm, base: 1.06))
+        top.fill(rounded(box(0, 4.6, 9.6, 1.5, mm: mm), 0.4, mm: mm), with: lit(design.top, -4.8, 4.8, mm: mm, base: 1.1))
+        // Clip windows on the skirt, the LED slot on the shoulder.
+        for x in [-5.0, 5.0] {
+            top.fill(rounded(box(x, 9.4, 2.4, 1.3, mm: mm), 0.25, mm: mm), with: .color(.black.opacity(clear ? 0.25 : 0.45)))
+        }
+        top.fill(rounded(box(4.6, 6.9, 2.6, 0.9, mm: mm), 0.2, mm: mm), with: .color(.black.opacity(clear ? 0.25 : 0.5)))
+        // Highlights: the top edges of each step catch the light.
+        for (y, w) in [(4.6, 9.6), (5.9, 9.6), (8.9, 15.6)] {
+            context.fill(Path(box(0, y, w * 0.92, 0.22, mm: mm)), with: .color(.white.opacity(sheen * (0.5 + lighting.intensity))))
+        }
 
         drawMechanism(in: &context, mm: mm)
         drawStem(in: &context, mm: mm)
@@ -176,85 +189,48 @@ struct SwitchView: View {
     private func drawMechanism(in context: inout GraphicsContext, mm: CGFloat) {
         switch design.mechanism {
         case .clickJacket(let c):
-            // The jacket rides around the stem, a lighter collar inside the opening.
-            context.fill(rounded(rect(0, 0, 6.6, 5.4, mm: mm), 0.5, mm: mm), with: .color(shade(c, 0.95)))
+            // The jacket collar around the stem, just above the housing.
+            context.fill(rounded(box(0, 3.5, 6.6, 1.4, mm: mm), 0.35, mm: mm), with: lit(c, -3.3, 3.3, mm: mm))
         case .clickBar(let c):
-            // The click bar spans the south side of the opening.
-            context.fill(rounded(rect(0, 2.5, 6.2, 0.7, mm: mm), 0.35, mm: mm),
-                         with: .linearGradient(Gradient(colors: [shade(c, 1.05), shade(c, 0.75)]),
-                                               startPoint: CGPoint(x: 0, y: 2.15 * mm), endPoint: CGPoint(x: 0, y: 2.85 * mm)))
-        case .linear, .tactile, .silent:
+            // The click bar's end, poking out beside the stem.
+            context.fill(rounded(box(3.9, 3.9, 1.8, 0.7, mm: mm), 0.3, mm: mm), with: lit(c, 3, 4.8, mm: mm))
+        default:
             break
         }
     }
 
     private func drawStem(in context: inout GraphicsContext, mm: CGFloat) {
         let stem = design.stem
-        let up = CGPoint(x: light.dx * 2.5 * mm, y: light.dy * 2.5 * mm)
-        let down = CGPoint(x: -light.dx * 2.5 * mm, y: -light.dy * 2.5 * mm)
-        let stemFill = GraphicsContext.Shading.linearGradient(
-            Gradient(colors: [shade(stem, 1.18), shade(stem, 0.82)]), startPoint: up, endPoint: down)
-
-        // Stem body inside the opening.
-        let body = rect(0, 0, 5.6, 4.4, mm: mm)
-        context.fill(rounded(body, 0.5, mm: mm), with: stemFill)
+        // Stem body rising out of the housing.
+        context.fill(rounded(box(0, 2.6, 5.6, 2.2, mm: mm), 0.35, mm: mm), with: lit(stem, -2.8, 2.8, mm: mm, base: 0.92))
 
         switch design.mechanism {
         case .tactile:
-            // Tactile legs on the stem's sides.
+            // Tactile legs flaring from the stem's sides.
             for side in [-1.0, 1.0] {
-                context.fill(rounded(rect(side * 3.05, -1.1, 0.6, 1.1, mm: mm), 0.2, mm: mm), with: .color(shade(stem, 0.7)))
+                context.fill(rounded(box(side * 3.1, 3.3, 0.7, 1.2, mm: mm), 0.2, mm: mm), with: .color(shade(stem, 0.7)))
             }
         case .silent(let pad):
-            // Dampener pads front and back.
-            for y in [-2.45, 2.45] {
-                context.fill(rounded(rect(0, y, 3.2, 0.55, mm: mm), 0.27, mm: mm), with: .color(pad.color))
+            for side in [-1.0, 1.0] {
+                context.fill(rounded(box(side * 2.2, 4.2, 1.6, 0.5, mm: mm), 0.2, mm: mm), with: .color(pad.color))
             }
         default:
             break
         }
 
-        // The cross protrudes about 3.6 mm above the housing, so it casts a shadow.
-        let cross = crossPath(mm: mm)
-        var shadow = context
-        shadow.addFilter(.blur(radius: 0.35 * mm))
-        shadow.fill(cross.offsetBy(dx: -light.dx * 0.55 * mm, dy: -light.dy * 0.55 * mm + 0.25 * mm),
-                    with: .color(.black.opacity(0.55)))
-
         if design.stemShape == .box {
-            // Box stem: a square wall around the cross keeps out dust and wobble.
-            let outer = rounded(rect(0, 0, 5.8, 5.8, mm: mm), 0.6, mm: mm)
-            let inner = rounded(rect(0, 0, 4.4, 4.4, mm: mm), 0.35, mm: mm)
-            context.fill(outer, with: stemFill)
-            context.fill(inner, with: .color(shade(stem, 0.55)))
-            context.stroke(outer, with: .color(.white.opacity(0.25)), lineWidth: 0.15 * mm)
+            // Box stem: a square wall rising around the cross.
+            context.fill(rounded(box(0, 0.6, 5.8, 2.4, mm: mm), 0.4, mm: mm), with: lit(stem, -2.9, 2.9, mm: mm, base: 1.02))
+            context.fill(rounded(box(0, 0.6, 5.8, 0.7, mm: mm), 0.35, mm: mm), with: .color(shade(stem, 1.25)))
         }
 
-        context.fill(cross, with: .linearGradient(
-            Gradient(colors: [shade(stem, 1.3), shade(stem, 0.95)]), startPoint: up, endPoint: down))
-        // Highlight along the cross's lit edges.
-        context.stroke(cross, with: .linearGradient(Gradient(colors: [.white.opacity(0.45), .clear]),
-                                                    startPoint: up, endPoint: down), lineWidth: 0.15 * mm)
-    }
-
-    /// The Cherry MX cross: 4.1 mm across, 1.17 mm horizontal and 1.31 mm vertical arms.
-    private func crossPath(mm: CGFloat) -> Path {
-        var p = Path()
-        p.addRoundedRect(in: rect(0, 0, 4.1, 1.17, mm: mm), cornerSize: CGSize(width: 0.2 * mm, height: 0.2 * mm))
-        p.addRoundedRect(in: rect(0, 0, 1.31, 4.1, mm: mm), cornerSize: CGSize(width: 0.2 * mm, height: 0.2 * mm))
-        return p
-    }
-
-    /// Opacity of the top housing, how glossy it is, and how bright its lit rim is.
-    private func materialLook(_ m: SwitchDesign.Material) -> (Double, Double, Double) {
-        switch m {
-        case .nylon: (1, 0.18, 0.18)          // matte, opaque
-        case .pom: (0.97, 0.35, 0.4)          // waxy, soft sheen
-        case .polycarbonate: (0.28, 0.6, 0.7) // clear, glossy
-        }
-    }
-
-    private func shade(_ c: RGB, _ k: Double) -> Color {
-        Color(.sRGB, red: min(1, c.r * k), green: min(1, c.g * k), blue: min(1, c.b * k))
+        // The cross: front face of the horizontal arm, the vertical arm rising above it,
+        // and their top faces catching the light.
+        context.fill(rounded(box(0, 0.9, 4.1, 2.0, mm: mm), 0.2, mm: mm), with: lit(stem, -2.05, 2.05, mm: mm, base: 1.05))
+        context.fill(rounded(box(0, 0, 1.31, 2.9, mm: mm), 0.2, mm: mm), with: lit(stem, -0.65, 0.65, mm: mm, base: 1.1))
+        context.fill(Path(box(0, 0.9, 4.1, 0.35, mm: mm)), with: .color(shade(stem, 1.35)))
+        context.fill(Path(box(0, 0, 1.31, 0.35, mm: mm)), with: .color(shade(stem, 1.4)))
+        // Shadow the cross casts onto the stem body.
+        context.fill(Path(box(0, 2.6, 4.1, 0.3, mm: mm)), with: .color(.black.opacity(0.35)))
     }
 }
