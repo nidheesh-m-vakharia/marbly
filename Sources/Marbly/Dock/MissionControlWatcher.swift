@@ -1,8 +1,9 @@
 import AppKit
 import ApplicationServices
 
-/// Reports when Mission Control or App Exposé opens and closes, using the Dock's own
-/// accessibility notifications. Event-driven, but needs Accessibility access.
+/// Reports when Mission Control, App Exposé or Show Desktop opens and closes, using the
+/// Dock's own accessibility notifications. Event-driven, but needs Accessibility access.
+/// In all three, Marbly rises and stays visible, the way the Dock does.
 @MainActor
 final class MissionControlWatcher {
     var onChange: ((Bool) -> Void)?
@@ -10,9 +11,10 @@ final class MissionControlWatcher {
 
     private var observer: AXObserver?
     private var dockLaunch: NSObjectProtocol?
+    private var appActivated: NSObjectProtocol?
 
-    private static let shown: Set<String> = ["AXExposeShowAllWindows", "AXExposeShowFrontWindows"]
-    private static let hidden: Set<String> = ["AXExposeExit", "AXExposeShowDesktop"]
+    private static let shown: Set<String> = ["AXExposeShowAllWindows", "AXExposeShowFrontWindows", "AXExposeShowDesktop"]
+    private static let hidden: Set<String> = ["AXExposeExit"]
 
     init() {
         // Marbly restarts the Dock to apply its settings, which drops the observer.
@@ -29,6 +31,13 @@ final class MissionControlWatcher {
 
     func start() {
         stop()
+        // Safety net: leaving Show Desktop or Mission Control brings an app forward.
+        // If the Dock's exit notification is ever missed, this still lowers Marbly.
+        appActivated = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { if self?.isActive == true { self?.handle("AXExposeExit") } }
+        }
         guard AXIsProcessTrusted(),
               let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
         else { return }
@@ -52,6 +61,8 @@ final class MissionControlWatcher {
     }
 
     func stop() {
+        if let appActivated { NSWorkspace.shared.notificationCenter.removeObserver(appActivated) }
+        appActivated = nil
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
         }

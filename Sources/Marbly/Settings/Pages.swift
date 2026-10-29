@@ -358,7 +358,7 @@ struct DockPage: View {
                         .labelsHidden().toggleStyle(PillSwitchStyle())
                 }
                 SettingRow(label: "Cover the Dock in Mission Control",
-                           detail: "Mission Control always shows the real Dock. Marbly rises over it.") {
+                           detail: "In Mission Control and Show Desktop, Marbly rises and stays in view over the real Dock.") {
                     Toggle("Cover the Dock in Mission Control", isOn: $prefs.coverMissionControl)
                         .labelsHidden().toggleStyle(PillSwitchStyle())
                 }
