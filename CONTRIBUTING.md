@@ -18,7 +18,7 @@ If it ever gets stuck, see [the guide](https://marbly.click/guide#dock-back).
    **App (macOS)** builds and tests the Swift package, **Site** builds the website,
    and **Conventional title** checks the PR title.
 3. PRs are squash-merged, so the PR title becomes the commit. Write it as
-   `type(scope): summary` in lower case, e.g. `fix(dock): restore tile size on quit`.
+   `type(scope): summary` starting in lower case (acronyms like CI are fine), e.g. `fix(dock): restore tile size on quit`.
    Types: `feat fix perf refactor style docs test build ci chore`.
    Scopes: `app site sound dock settings repo`.
 

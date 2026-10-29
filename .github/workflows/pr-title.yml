@@ -39,6 +39,7 @@ jobs:
             settings
             repo
           requireScope: false
-          subjectPattern: ^(?![A-Z]).+$
+          # Lower-case start ("add …", not "Add …"); acronyms like CI or PR are fine.
+          subjectPattern: ^(?![A-Z][a-z]).+$
           subjectPatternError: |
-            Start the summary in lower case, e.g. "feat(app): add window numbers".
+            Start the summary in lower case, e.g. "feat(app): add window numbers". Acronyms like CI are fine.
