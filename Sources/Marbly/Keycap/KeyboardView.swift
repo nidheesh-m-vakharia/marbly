@@ -242,16 +242,21 @@ struct KeyboardView: View {
     /// A press that becomes a drag once it moves sideways: a click opens the app, a drag
     /// lifts the cap and reorders the well, a drop writes the new order to the Dock.
     private func press(_ app: DockApp, unit: CGFloat, pan: Float, group: Int, position: Int, ids: [String]) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        // Global coordinates: the dragged key itself moves as the order changes, so
+        // measuring in its own space would feed its movement back into the drag.
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 if var d = drag {
                     guard d.id == app.id else { return }
                     let step = unit * (1 + BoardLayout.spacing)
+                    let dx = value.translation.width
+                    guard step > 0, step.isFinite, dx.isFinite else { return }
                     let lower = -CGFloat(d.startIndex) * step - unit * 0.3
                     let upper = CGFloat(d.original.count - 1 - d.startIndex) * step + unit * 0.3
-                    d.translation = min(max(value.translation.width, lower), upper)
-                    let target = min(max(Int(((CGFloat(d.startIndex) * step + d.translation) / step).rounded()), 0),
-                                     d.order.count - 1)
+                    d.translation = min(max(dx, lower), upper)
+                    let slot = ((CGFloat(d.startIndex) * step + d.translation) / step).rounded()
+                    guard slot.isFinite else { return }
+                    let target = min(max(Int(slot), 0), d.order.count - 1)
                     if let current = d.order.firstIndex(of: d.id), target != current {
                         d.order.remove(at: current)
                         d.order.insert(d.id, at: target)
@@ -263,7 +268,7 @@ struct KeyboardView: View {
                     pressedID = app.id
                     click(.down, pan: pan)
                 }
-                if canDrag(app), abs(value.translation.width) > 6 {
+                if canDrag(app), value.translation.width.isFinite, abs(value.translation.width) > 6 {
                     // Pick the cap up off its switch.
                     pressedID = nil
                     if prefs.releaseSounds { click(.up, pan: pan) }
@@ -282,7 +287,9 @@ struct KeyboardView: View {
                 }
                 pressedID = nil
                 if prefs.releaseSounds { click(.up, pan: pan) }
-                if launchesApps, CGRect(x: 0, y: 0, width: unit, height: unit).contains(value.location) {
+                // A click if the pointer was let go roughly where it went down.
+                let moved = hypot(value.translation.width, value.translation.height)
+                if launchesApps, moved.isFinite, moved < unit / 2 {
                     store.activate(app)
                 }
             }
