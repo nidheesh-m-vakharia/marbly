@@ -14,6 +14,36 @@ struct KeyboardView: View {
     @State private var pressedID: String?
     @State private var hoveredID: String?
 
+    /// A key being dragged to a new place. Other keys in its well shift to show where it
+    /// would land; nothing is committed until it's dropped.
+    private struct DragState {
+        let id: String
+        let group: Int
+        let startIndex: Int
+        let original: [String]
+        var order: [String]
+        var translation: CGFloat
+    }
+    @State private var drag: DragState?
+    /// 0 resting, 1 fully lifted: the dragged cap rises off its switch.
+    @State private var lift: CGFloat = 0
+    /// The key just dropped, settling back onto its switch.
+    @State private var droppedID: String?
+    @State private var dropCount = 0
+
+    /// For `--snapshot-drag`: start mid-drag, the given key moved to `to`.
+    func frozenDrag(id: String, group: Int, from: Int, to: Int, ids: [String], unit: CGFloat) -> KeyboardView {
+        var copy = self
+        var order = ids
+        order.remove(at: from)
+        order.insert(id, at: to)
+        let step = unit * (1 + BoardLayout.spacing)
+        copy._drag = State(initialValue: DragState(id: id, group: group, startIndex: from, original: ids, order: order,
+                                                   translation: CGFloat(to - from) * step + unit * 0.2))
+        copy._lift = State(initialValue: 1)
+        return copy
+    }
+
     var body: some View {
         let unit = unitOverride ?? CGFloat(prefs.keySize)
         VStack(spacing: unit * BoardLayout.reflectionGap) {
@@ -33,8 +63,19 @@ struct KeyboardView: View {
         .padding(.bottom, prefs.showReflection ? 0 : unit * BoardLayout.bottom)
         // The tooltip lives outside the board's drawingGroup, which would clip it.
         .overlay(alignment: .topLeading) {
-            if pressedID == nil, let id = hoveredID, let (index, app) = hoveredApp(id) {
+            if pressedID == nil, drag == nil, let id = hoveredID, let (index, app) = hoveredApp(id) {
                 tooltip(app.displayName).position(x: BoardLayout(unit: unit).keyFrame(index, in: store.slots)?.midX ?? 0, y: unit * 0.32)
+            }
+        }
+        // The lifted cap, also outside the drawingGroup so it can rise above the case.
+        .overlay(alignment: .topLeading) {
+            if let d = drag, let (index, app) = hoveredApp(d.id),
+               let frame = BoardLayout(unit: unit).keyFrame(index, in: store.slots) {
+                KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle, isPressed: false)
+                    .scaleEffect(1 + 0.06 * lift)
+                    .shadow(color: .black.opacity(0.45 * lift), radius: unit * 0.18 * lift, y: unit * 0.24 * lift)
+                    .position(x: frame.midX + d.translation, y: frame.midY - unit * 0.3 * lift)
+                    .allowsHitTesting(false)
             }
         }
     }
@@ -56,19 +97,52 @@ struct KeyboardView: View {
         // with the case surface showing between wells.
         return HStack(spacing: unit * BoardLayout.gap) {
             // Groups are identified by position so a well doesn't re-enter when its first key changes.
-            ForEach(Array(BoardLayout.groups(store.slots).enumerated()), id: \.offset) { _, group in
+            ForEach(Array(BoardLayout.groups(store.slots).enumerated()), id: \.offset) { groupIndex, group in
+                let ids = group.map(\.app.id)
                 HStack(spacing: unit * BoardLayout.spacing) {
-                    ForEach(group, id: \.app.id) { index, app in
-                        let key = KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle, isPressed: pressedID == app.id)
+                    ForEach(Array(group.enumerated()), id: \.element.app.id) { position, entry in
+                        let app = entry.app
+                        let step = unit * (1 + BoardLayout.spacing)
+                        let shown = previewPosition(of: app.id, at: position, group: groupIndex)
+                        let held = drag.flatMap { $0.order.firstIndex(of: $0.id) } ?? shown
+                        // Keys further from the held one move a beat later, so the shift ripples.
+                        let stagger = Double(abs(shown - held)) * 0.035
                         Group {
-                            if interactive {
-                                key
-                                .contentShape(Rectangle())
-                                .onHover { hoveredID = $0 ? app.id : (hoveredID == app.id ? nil : hoveredID) }
-                                .gesture(press(app, unit: unit, pan: pan(index)))
+                            if drag?.id == app.id {
+                                // The cap is lifted off: the switch underneath shows in its slot.
+                                SwitchView(design: .forSwitch(prefs.switchType), unit: unit, lighting: prefs.lighting)
                             } else {
-                                key
+                                let key = KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle,
+                                                     isPressed: pressedID == app.id)
+                                if interactive {
+                                    key
+                                    .contentShape(Rectangle())
+                                    .onHover { hoveredID = $0 ? app.id : (hoveredID == app.id ? nil : hoveredID) }
+                                } else {
+                                    key
+                                }
                             }
+                        }
+                        .gesture(press(app, unit: unit, pan: pan(entry.index), group: groupIndex, position: position, ids: ids),
+                                 including: interactive ? .all : .none)
+                        // Shifting to make room: slide over with a spring, staggered by distance.
+                        .offset(x: CGFloat(shown - position) * step)
+                        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.82).delay(stagger),
+                                   value: shown)
+                        // …lifting a little as it goes, then setting back down.
+                        .keyframeAnimator(initialValue: 0.0, trigger: shown) { content, value in
+                            content.offset(y: -value * unit * 0.12).scaleEffect(1 + value * 0.03)
+                        } keyframes: { _ in
+                            LinearKeyframe(0.0, duration: stagger)
+                            SpringKeyframe(reduceMotion ? 0.0 : 1.0, duration: 0.12)
+                            SpringKeyframe(0.0, duration: 0.24)
+                        }
+                        // The dropped key settles from its lifted height onto the switch.
+                        .keyframeAnimator(initialValue: 0.0, trigger: dropCount) { content, value in
+                            content.offset(y: droppedID == app.id ? -value * unit * 0.3 : 0)
+                        } keyframes: { _ in
+                            LinearKeyframe(1.0, duration: 0.001)
+                            SpringKeyframe(0.0, duration: reduceMotion ? 0.12 : 0.34, spring: .bouncy)
                         }
                         .transition(keyTransition)
                     }
@@ -154,20 +228,79 @@ struct KeyboardView: View {
         )
     }
 
-    private func press(_ app: DockApp, unit: CGFloat, pan: Float) -> some Gesture {
+    /// Where a key shows during a drag: its place in the previewed order.
+    private func previewPosition(of id: String, at position: Int, group: Int) -> Int {
+        guard let d = drag, d.group == group, let i = d.order.firstIndex(of: id) else { return position }
+        return i
+    }
+
+    /// Pinned apps can be moved, except Finder (always first) and window keys.
+    private func canDrag(_ app: DockApp) -> Bool {
+        launchesApps && app.isPinned && app.windowNumber == nil
+    }
+
+    /// A press that becomes a drag once it moves sideways: a click opens the app, a drag
+    /// lifts the cap and reorders the well, a drop writes the new order to the Dock.
+    private func press(_ app: DockApp, unit: CGFloat, pan: Float, group: Int, position: Int, ids: [String]) -> some Gesture {
         DragGesture(minimumDistance: 0)
-            .onChanged { _ in
-                guard pressedID != app.id else { return }
-                pressedID = app.id
-                click(.down, pan: pan)
+            .onChanged { value in
+                if var d = drag {
+                    guard d.id == app.id else { return }
+                    let step = unit * (1 + BoardLayout.spacing)
+                    let lower = -CGFloat(d.startIndex) * step - unit * 0.3
+                    let upper = CGFloat(d.original.count - 1 - d.startIndex) * step + unit * 0.3
+                    d.translation = min(max(value.translation.width, lower), upper)
+                    let target = min(max(Int(((CGFloat(d.startIndex) * step + d.translation) / step).rounded()), 0),
+                                     d.order.count - 1)
+                    if let current = d.order.firstIndex(of: d.id), target != current {
+                        d.order.remove(at: current)
+                        d.order.insert(d.id, at: target)
+                    }
+                    drag = d
+                    return
+                }
+                if pressedID != app.id {
+                    pressedID = app.id
+                    click(.down, pan: pan)
+                }
+                if canDrag(app), abs(value.translation.width) > 6 {
+                    // Pick the cap up off its switch.
+                    pressedID = nil
+                    if prefs.releaseSounds { click(.up, pan: pan) }
+                    lift = 0
+                    drag = DragState(id: app.id, group: group, startIndex: position, original: ids, order: ids,
+                                     translation: value.translation.width)
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.26, dampingFraction: 0.7)) {
+                        lift = 1
+                    }
+                }
             }
             .onEnded { value in
+                if let d = drag, d.id == app.id {
+                    drop(d, pan: pan)
+                    return
+                }
                 pressedID = nil
                 if prefs.releaseSounds { click(.up, pan: pan) }
                 if launchesApps, CGRect(x: 0, y: 0, width: unit, height: unit).contains(value.location) {
                     store.activate(app)
                 }
             }
+    }
+
+    /// Puts the cap down in its new place. The board's order and every offset change in
+    /// one step without animation, so nothing jumps; then the cap settles onto its switch.
+    private func drop(_ d: DragState, pan: Float) {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            store.reorder(group: d.original, to: d.order, moved: d.id)
+            drag = nil
+            lift = 0
+            droppedID = d.id
+            dropCount += 1
+        }
+        click(.down, pan: pan)
     }
 
     private func click(_ stroke: Stroke, pan: Float) {

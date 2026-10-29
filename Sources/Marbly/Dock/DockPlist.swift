@@ -58,6 +58,30 @@ enum DockPlist {
         try? p.run()
     }
 
+    /// Moves a pinned app in the Dock's own list: before `next`, or else after `previous`.
+    static func movePinned(_ url: URL, before next: URL?, after previous: URL?) {
+        CFPreferencesAppSynchronize(domain)
+        var tiles = CFPreferencesCopyAppValue("persistent-apps" as CFString, domain) as? [[String: Any]] ?? []
+        func index(of target: URL?) -> Int? {
+            guard let path = target?.standardizedFileURL.path else { return nil }
+            return tiles.firstIndex { tile in
+                guard case .app(_, let u, _)? = parse([tile]).first else { return false }
+                return u.standardizedFileURL.path == path
+            }
+        }
+        guard let from = index(of: url) else { return }
+        let tile = tiles.remove(at: from)
+        let to = index(of: next) ?? index(of: previous).map { $0 + 1 } ?? from
+        tiles.insert(tile, at: min(to, tiles.count))
+        CFPreferencesSetAppValue("persistent-apps" as CFString, tiles as CFArray, domain)
+        CFPreferencesAppSynchronize(domain)
+        // The Dock reads its list at launch.
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+        p.arguments = ["Dock"]
+        try? p.run()
+    }
+
     static func parse(_ tiles: [[String: Any]]) -> [DockEntry] {
         tiles.compactMap { tile in
             let type = tile["tile-type"] as? String ?? "file-tile"

@@ -44,6 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Snapshot.exportBoard(to: URL(fileURLWithPath: args[i + 1]), store: store)
             exit(0)
         }
+        if let i = args.firstIndex(of: "--snapshot-switches"), i + 1 < args.count {
+            Snapshot.writeSwitches(to: URL(fileURLWithPath: args[i + 1]), prefs: prefs)
+            exit(0)
+        }
+        if let i = args.firstIndex(of: "--snapshot-drag"), i + 1 < args.count {
+            Snapshot.writeDrag(to: URL(fileURLWithPath: args[i + 1]), store: store, prefs: prefs, sound: sound)
+            exit(0)
+        }
         if args.contains("--list-keys") {
             for slot in store.slots {
                 if case .app(let app) = slot.kind {
@@ -208,6 +216,52 @@ enum Snapshot {
         try? data.write(to: url)
     }
 
+    /// Every switch type side by side, as they look with their caps off.
+    @MainActor
+    static func writeSwitches(to url: URL, prefs: Preferences) {
+        let view = VStack(alignment: .leading, spacing: 18) {
+            ForEach(Array(SwitchType.allCases.chunked(4).enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 18) {
+                    ForEach(row) { type in
+                        VStack(spacing: 8) {
+                            SwitchView(design: .forSwitch(type), unit: 150, lighting: prefs.lighting)
+                                .padding(10)
+                                .background(Color(white: 0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            Text(SwitchDesign.forSwitch(type).name).font(.system(size: 13)).foregroundStyle(.white)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .background(Color(white: 0.16))
+        render(view, to: url, scale: 2)
+    }
+
+    /// The board frozen mid-drag: the second pinned key lifted and carried three places right.
+    @MainActor
+    static func writeDrag(to url: URL, store: DockStore, prefs: Preferences, sound: SoundEngine) {
+        let unit = CGFloat(prefs.keySize)
+        guard let (groupIndex, group) = BoardLayout.groups(store.slots).enumerated()
+            .first(where: { $0.element.filter { $0.app.isPinned }.count >= 4 }).map({ ($0.offset, $0.element) }),
+              let from = group.firstIndex(where: { $0.app.isPinned }).map({ $0 + 1 }), from < group.count
+        else { return }
+        let ids = group.map(\.app.id)
+        let view = KeyboardView(store: store, prefs: prefs, sound: sound)
+            .frozenDrag(id: ids[from], group: groupIndex, from: from, to: min(from + 3, ids.count - 1), ids: ids, unit: unit)
+            .background(LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom))
+        render(view, to: url, scale: 2)
+    }
+
+    @MainActor
+    private static func render(_ view: some View, to url: URL, scale: CGFloat) {
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = scale
+        guard let cg = renderer.cgImage,
+              let data = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return }
+        try? data.write(to: url)
+    }
+
     /// Stacks a few menu rows (the second one hovered) to check spacing.
     @MainActor
     static func writeMenu(to url: URL, dark: Bool) {
@@ -258,5 +312,11 @@ enum Snapshot {
             try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(page.rawValue).png"))
         }
         writeMenu(to: dir.appendingPathComponent("menu.png"), dark: dark)
+    }
+}
+
+private extension Array {
+    func chunked(_ size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map { Array(self[$0..<Swift.min($0 + size, count)]) }
     }
 }

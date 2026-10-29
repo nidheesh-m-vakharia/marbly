@@ -8,6 +8,8 @@ struct DockApp: Identifiable, Equatable {
     let icon: NSImage
     let palette: KeycapPalette
     var isRunning: Bool
+    /// Pinned in the Dock (not Finder, not a running-only app); these can be reordered.
+    var isPinned = false
     /// Set when the app has several windows and this key stands for one of them.
     var window: AppWindow? = nil
     /// The window's position among the app's windows, printed on the key (1, 2, …).
@@ -74,10 +76,11 @@ final class DockStore: ObservableObject {
         var result: [DockSlot] = []
         var seen = Set<String>()
 
-        func add(name: String, url: URL) {
+        func add(name: String, url: URL, pinned: Bool = false) {
             let path = url.standardizedFileURL.path
             guard seen.insert(path).inserted else { return }
-            let base = app(name: name, url: url, running: byPath[path] != nil)
+            var base = app(name: name, url: url, running: byPath[path] != nil)
+            base.isPinned = pinned
             let windows = showsWindows ? byPath[path].map(windowTracker.windows(of:)) ?? [] : []
             guard windows.count > 1 else {
                 result.append(DockSlot(id: path, kind: .app(base)))
@@ -96,7 +99,7 @@ final class DockStore: ObservableObject {
         add(name: "Finder", url: Self.finderURL)
         for (i, entry) in DockPlist.readPersistentApps().enumerated() {
             switch entry {
-            case .app(let name, let url, _): add(name: name, url: url)
+            case .app(let name, let url, _): add(name: name, url: url, pinned: true)
             case .spacer: result.append(DockSlot(id: "spacer-\(i)", kind: .spacer))
             }
         }
@@ -115,6 +118,26 @@ final class DockStore: ObservableObject {
         // Forget looks for apps that are gone so the cache can't grow forever.
         looks = looks.filter { seen.contains($0.key) }
         if result != slots { slots = result }
+    }
+
+    /// Moves a pinned app within its group, on the board straight away and in the real
+    /// Dock. `order` is the group's slot ids in their new order.
+    func reorder(group oldOrder: [String], to order: [String], moved id: String) {
+        guard oldOrder != order, Set(oldOrder) == Set(order) else { return }
+        // On the board first, so nothing waits on the Dock restarting.
+        let positions = slots.indices.filter { oldOrder.contains(slots[$0].id) }
+        let byID = Dictionary(uniqueKeysWithValues: slots.map { ($0.id, $0) })
+        var next = slots
+        for (position, slotID) in zip(positions, order) { if let slot = byID[slotID] { next[position] = slot } }
+        slots = next
+
+        // Then in the Dock: place it before its new right-hand neighbour, or after its left.
+        func url(_ slotID: String?) -> URL? {
+            guard let slotID, case .app(let app)? = byID[slotID]?.kind, app.isPinned else { return nil }
+            return app.url
+        }
+        guard let i = order.firstIndex(of: id), let moved = url(id) else { return }
+        DockPlist.movePinned(moved, before: url(order[safe: i + 1]), after: url(order[safe: i - 1]))
     }
 
     func activate(_ app: DockApp) {
@@ -203,4 +226,8 @@ final class DockStore: ObservableObject {
         source.resume()
         plistWatcher = source
     }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
