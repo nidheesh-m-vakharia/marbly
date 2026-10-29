@@ -1,0 +1,149 @@
+[
+  {
+    "icon" : "finder.png",
+    "name" : "Finder",
+    "palette" : {
+      "base" : "#24A2ED",
+      "faceTop" : "#40B8FF",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#085582",
+      "wallLight" : "#1585C7"
+    },
+    "running" : true
+  },
+  {
+    "icon" : "safari.png",
+    "name" : "Safari",
+    "palette" : {
+      "base" : "#EBECED",
+      "faceTop" : "#FDFEFF",
+      "legend" : "#212126",
+      "wallDark" : "#818282",
+      "wallLight" : "#C6C6C7"
+    },
+    "running" : true
+  },
+  {
+    "icon" : "messages.png",
+    "name" : "Messages",
+    "palette" : {
+      "base" : "#42D95C",
+      "faceTop" : "#5BEB73",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#1C782B",
+      "wallLight" : "#31B748"
+    },
+    "running" : true
+  },
+  {
+    "icon" : "mail.png",
+    "name" : "Mail",
+    "palette" : {
+      "base" : "#378CED",
+      "faceTop" : "#52A3FF",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#144882",
+      "wallLight" : "#2672C7"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "maps.png",
+    "name" : "Maps",
+    "palette" : {
+      "base" : "#5AE171",
+      "faceTop" : "#73F388",
+      "legend" : "#212126",
+      "wallDark" : "#2A7C38",
+      "wallLight" : "#46BD5A"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "photos.png",
+    "name" : "Photos",
+    "palette" : {
+      "base" : "#EDEDED",
+      "faceTop" : "#FFFFFF",
+      "legend" : "#212126",
+      "wallDark" : "#828282",
+      "wallLight" : "#C7C7C7"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "facetime.png",
+    "name" : "FaceTime",
+    "palette" : {
+      "base" : "#42D95B",
+      "faceTop" : "#5BEB73",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#1C782B",
+      "wallLight" : "#31B748"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "calendar.png",
+    "name" : "Calendar",
+    "palette" : {
+      "base" : "#ED424D",
+      "faceTop" : "#FF5D67",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#821B21",
+      "wallLight" : "#C7303A"
+    },
+    "running" : true
+  },
+  {
+    "icon" : "notes.png",
+    "name" : "Notes",
+    "palette" : {
+      "base" : "#EDCB36",
+      "faceTop" : "#FFDE52",
+      "legend" : "#212126",
+      "wallDark" : "#826E14",
+      "wallLight" : "#C7A926"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "music.png",
+    "name" : "Music",
+    "palette" : {
+      "base" : "#ED244A",
+      "faceTop" : "#FF4065",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#820920",
+      "wallLight" : "#C71638"
+    },
+    "running" : true
+  },
+  {
+    "spacer" : true
+  },
+  {
+    "icon" : "app-store.png",
+    "name" : "App Store",
+    "palette" : {
+      "base" : "#248CED",
+      "faceTop" : "#40A3FF",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#084882",
+      "wallLight" : "#1572C7"
+    },
+    "running" : false
+  },
+  {
+    "icon" : "system-settings.png",
+    "name" : "System Settings",
+    "palette" : {
+      "base" : "#8A8A8F",
+      "faceTop" : "#96969B",
+      "legend" : "#F7F7FA",
+      "wallDark" : "#4C4C4F",
+      "wallLight" : "#747478"
+    },
+    "running" : false
+  }
+]
