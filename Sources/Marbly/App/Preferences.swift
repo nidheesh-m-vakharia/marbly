@@ -52,6 +52,10 @@ final class Preferences: ObservableObject {
 
     var keyStyle: KeyStyle { KeyStyle(profile: profile, lighting: lighting) }
 
+    /// Marbly hides and reveals itself only while it has replaced the Dock. With the real
+    /// Dock still active, both would answer the bottom edge and race each other.
+    var hidesWhenIdle: Bool { autoHide && replaceSystemDock }
+
     /// The preset the current settings match, if any.
     var activeTheme: Theme? {
         Theme.all.first { $0.caseColor.hex == caseColor.hex && $0.profile == profile && $0.lighting == lighting }
@@ -91,6 +95,12 @@ final class Preferences: ObservableObject {
         gapColor = RGB(hex: defaults.string(forKey: "gapColor") ?? "") ?? RGB(hex: "#3E63DD")!
         backlight = defaults.double(forKey: "backlight")
         appearance = WindowAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
+        // One-time reset: Replace the macOS Dock is on by default. Turn it back on for
+        // anyone who has it saved as off from before this default was settled.
+        if defaults.integer(forKey: "prefsVersion") < 2 {
+            defaults.removeObject(forKey: "replaceSystemDock")
+            defaults.set(2, forKey: "prefsVersion")
+        }
         replaceSystemDock = defaults.bool(forKey: "replaceSystemDock")
         autoHide = defaults.bool(forKey: "autoHide")
         coverMissionControl = defaults.bool(forKey: "coverMissionControl")

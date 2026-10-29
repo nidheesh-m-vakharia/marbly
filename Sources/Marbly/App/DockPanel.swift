@@ -137,7 +137,7 @@ final class DockPanel {
 
     func show() {
         layout()
-        if prefs.autoHide { conceal(animated: false) } else { reveal(animated: false) }
+        if prefs.hidesWhenIdle { conceal(animated: false) } else { reveal(animated: false) }
     }
 
     /// In Mission Control the system Dock is always drawn. Marbly rises above the overlay
@@ -152,7 +152,7 @@ final class DockPanel {
             panel.orderFrontRegardless()
         } else {
             panel.level = Self.dockLevel
-            if prefs.autoHide, !panel.frame.contains(NSEvent.mouseLocation) {
+            if prefs.hidesWhenIdle, !panel.frame.contains(NSEvent.mouseLocation) {
                 isShown = true
                 conceal(animated: false)
             } else {
@@ -177,13 +177,13 @@ final class DockPanel {
         shownFrame = NSRect(x: (bounds.midX - size.width / 2).rounded(), y: bottom, width: size.width, height: size.height)
 
         edge.setFrame(NSRect(x: shownFrame.minX, y: bounds.minY, width: shownFrame.width, height: 2), display: false)
-        if prefs.autoHide { edge.orderFrontRegardless() } else { edge.orderOut(nil) }
+        if prefs.hidesWhenIdle { edge.orderFrontRegardless() } else { edge.orderOut(nil) }
 
         if inMissionControl {
             panel.setFrame(missionControlFrame, display: true)
             return
         }
-        if !prefs.autoHide, !isShown { reveal(animated: true) }
+        if !prefs.hidesWhenIdle, !isShown { reveal(animated: true) }
         guard isShown, panel.frame != shownFrame else { return }
         // The board animates its own size inside the panel, centred. Growing, the panel
         // makes room straight away; shrinking, it waits for the keys to finish leaving.
@@ -207,7 +207,7 @@ final class DockPanel {
     // MARK: - Auto-hide
 
     private func pointer(atEdge inside: Bool) {
-        guard prefs.autoHide, !isShown, !inMissionControl else { return }
+        guard prefs.hidesWhenIdle, !isShown, !inMissionControl else { return }
         if inside {
             schedule(after: SystemDock.userDelay) { $0.reveal(animated: true) }
         } else {
@@ -225,7 +225,7 @@ final class DockPanel {
     }
 
     private func pointer(onBoard inside: Bool) {
-        guard prefs.autoHide, isShown, !menuOpen, !inMissionControl else { return }
+        guard prefs.hidesWhenIdle, isShown, !menuOpen, !inMissionControl else { return }
         if inside {
             pending?.cancel()
         } else {
