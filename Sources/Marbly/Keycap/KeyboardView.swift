@@ -64,17 +64,26 @@ struct KeyboardView: View {
         // The tooltip lives outside the board's drawingGroup, which would clip it.
         .overlay(alignment: .topLeading) {
             if pressedID == nil, drag == nil, let id = hoveredID, let (index, app) = hoveredApp(id) {
-                tooltip(app.displayName).position(x: BoardLayout(unit: unit).keyFrame(index, in: store.slots)?.midX ?? 0, y: unit * 0.32)
+                tooltip(app.displayName).position(x: BoardLayout(unit: unit).keyFrame(index, in: store.slots)?.midX ?? 0, y: unit * (BoardLayout.top - 0.28))
             }
         }
         // The lifted cap, also outside the drawingGroup so it can rise above the case.
         .overlay(alignment: .topLeading) {
             if let d = drag, let (index, app) = hoveredApp(d.id),
                let frame = BoardLayout(unit: unit).keyFrame(index, in: store.slots) {
+                // Pulled clear of the board, so the switch it came off is visible below it.
+                let rise = unit * BoardLayout.liftHeight * lift
+                // The cap's shadow, cast down onto the switch it's hovering over.
+                RoundedRectangle(cornerRadius: KeycapView.capRadius(unit: unit, profile: prefs.profile), style: .continuous)
+                    .fill(.black.opacity(0.32 * lift))
+                    .frame(width: unit * 0.9, height: unit * 0.9)
+                    .blur(radius: unit * 0.12)
+                    .position(x: frame.midX + d.translation + unit * 0.05, y: frame.midY + unit * 0.08)
+                    .allowsHitTesting(false)
                 KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle, isPressed: false)
-                    .scaleEffect(1 + 0.06 * lift)
-                    .shadow(color: .black.opacity(0.45 * lift), radius: unit * 0.18 * lift, y: unit * 0.24 * lift)
-                    .position(x: frame.midX + d.translation, y: frame.midY - unit * 0.3 * lift)
+                    .scaleEffect(1 + 0.08 * lift)
+                    .shadow(color: .black.opacity(0.4 * lift), radius: unit * 0.2 * lift, y: unit * 0.3 * lift)
+                    .position(x: frame.midX + d.translation, y: frame.midY - rise)
                     .allowsHitTesting(false)
             }
         }
@@ -107,21 +116,22 @@ struct KeyboardView: View {
                         let held = drag.flatMap { $0.order.firstIndex(of: $0.id) } ?? shown
                         // Keys further from the held one move a beat later, so the shift ripples.
                         let stagger = Double(abs(shown - held)) * 0.035
-                        Group {
-                            if drag?.id == app.id {
-                                // The cap is lifted off: the switch underneath shows in its slot.
+                        let lifted = drag?.id == app.id
+                        // One view for the whole drag, so the gesture attached to it survives:
+                        // the cap fades out of its slot and the switch beneath shows instead.
+                        ZStack {
+                            if lifted {
                                 SwitchView(design: .forSwitch(prefs.switchType), unit: unit, lighting: prefs.lighting)
-                            } else {
-                                let key = KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle,
-                                                     isPressed: pressedID == app.id)
-                                if interactive {
-                                    key
-                                    .contentShape(Rectangle())
-                                    .onHover { hoveredID = $0 ? app.id : (hoveredID == app.id ? nil : hoveredID) }
-                                } else {
-                                    key
-                                }
                             }
+                            KeycapView(app: app, unit: unit, legend: prefs.legend, style: prefs.keyStyle,
+                                       isPressed: pressedID == app.id)
+                                .opacity(lifted ? 0 : 1)
+                        }
+                        .frame(width: unit, height: unit)
+                        .contentShape(Rectangle())
+                        .onHover { inside in
+                            guard interactive else { return }
+                            hoveredID = inside ? app.id : (hoveredID == app.id ? nil : hoveredID)
                         }
                         .gesture(press(app, unit: unit, pan: pan(entry.index), group: groupIndex, position: position, ids: ids),
                                  including: interactive ? .all : .none)
@@ -139,7 +149,7 @@ struct KeyboardView: View {
                         }
                         // The dropped key settles from its lifted height onto the switch.
                         .keyframeAnimator(initialValue: 0.0, trigger: dropCount) { content, value in
-                            content.offset(y: droppedID == app.id ? -value * unit * 0.3 : 0)
+                            content.offset(y: droppedID == app.id ? -value * unit * BoardLayout.liftHeight : 0)
                         } keyframes: { _ in
                             LinearKeyframe(1.0, duration: 0.001)
                             SpringKeyframe(0.0, duration: reduceMotion ? 0.12 : 0.34, spring: .bouncy)
@@ -335,7 +345,9 @@ struct KeyboardView: View {
 /// Where each key sits inside the board view, in its top-left coordinate space.
 /// Shared by the SwiftUI layout, the tooltip, and right-click hit-testing.
 struct BoardLayout {
-    static let top = 0.6, side = 0.3, caseWall = 0.12, plate = 0.14, spacing = 0.07, gap = 0.22
+    static let top = 1.05, side = 0.3, caseWall = 0.12, plate = 0.14, spacing = 0.07, gap = 0.22
+    /// How far a picked-up cap rises above its switch, in key units.
+    static let liftHeight = 0.85
     static let reflectionGap = 0.04, reflection = 0.55, bottom = 0.2
     let unit: CGFloat
 
