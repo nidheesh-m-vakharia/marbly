@@ -348,8 +348,11 @@ struct DockPage: View {
                         .labelsHidden().toggleStyle(PillSwitchStyle())
                 }
                 SettingRow(label: "Hide when not in use",
-                           detail: "Slides away and returns when the pointer reaches the bottom of the screen.") {
+                           detail: prefs.replaceSystemDock
+                               ? "Slides away and returns when the pointer reaches the bottom of the screen."
+                               : "Needs Replace the macOS Dock, or the real Dock and Marbly both slide up.") {
                     Toggle("Hide when not in use", isOn: $prefs.autoHide)
+                        .disabled(!prefs.replaceSystemDock)
                         .labelsHidden().toggleStyle(PillSwitchStyle())
                 }
                 SettingRow(label: "Show each window",
