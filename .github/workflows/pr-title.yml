@@ -1,0 +1,45 @@
+name: PR title
+
+# Squash merges use the PR title as the commit message, so titles follow
+# Conventional Commits: type(scope): summary — e.g. "feat(app): window numbers".
+# `pull_request` (not `_target`) so the check runs from the PR's own workflow file,
+# including on the PR that introduces it. It only reads the title; nothing is checked out.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            style
+            docs
+            test
+            build
+            ci
+            chore
+          scopes: |
+            app
+            site
+            sound
+            dock
+            settings
+            repo
+          requireScope: false
+          # Lower-case start ("add …", not "Add …"); acronyms like CI or PR are fine.
+          subjectPattern: ^(?![A-Z][a-z]).+$
+          subjectPatternError: |
+            Start the summary in lower case, e.g. "feat(app): add window numbers". Acronyms like CI are fine.
